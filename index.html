@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>家庭点餐 14.0</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body{margin:0;font-family:Arial;background:#f5f5f5;}
+
+header{
+background:#07c160;
+color:#fff;
+padding:12px;
+text-align:center;
+font-weight:bold;
+}
+
+.topbar{
+display:flex;
+gap:6px;
+padding:8px;
+background:#fff;
+border-bottom:1px solid #ddd;
+}
+
+input{
+flex:1;
+padding:6px;
+border:1px solid #ddd;
+border-radius:6px;
+}
+
+button{
+background:#07c160;
+color:#fff;
+border:none;
+padding:6px 10px;
+border-radius:6px;
+font-size:12px;
+}
+
+.container{padding:10px;}
+
+.item{
+background:#fff;
+padding:10px;
+margin-bottom:8px;
+border-radius:8px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+}
+
+.cart{
+position:fixed;
+bottom:15px;
+right:15px;
+background:#333;
+color:#fff;
+padding:10px 15px;
+border-radius:30px;
+cursor:pointer;
+}
+
+.panel{
+position:fixed;
+left:0;right:0;bottom:0;
+background:#fff;
+border-top:1px solid #ddd;
+max-height:60%;
+overflow:auto;
+display:none;
+padding:10px;
+}
+
+.orderBox{
+background:#fff;
+padding:10px;
+margin-bottom:8px;
+border-radius:8px;
+}
+</style>
+</head>
+
+<body>
+
+<header>🍱 家庭点餐 14.0（简洁稳定版）</header>
+
+<div class="topbar">
+<input id="searchInput" placeholder="搜索菜品..." oninput="searchFood()">
+<button onclick="openCart()">购物车</button>
+<button onclick="openAdmin()">后台</button>
+</div>
+
+<div class="container" id="list"></div>
+
+<div class="cart" onclick="openCart()">
+🧺 <span id="num">0</span>
+</div>
+
+<!-- 购物车 -->
+<div class="panel" id="cartPanel">
+<h3>购物车</h3>
+<div id="cartList"></div>
+<button onclick="submitOrder()">提交订单</button>
+</div>
+
+<!-- 后台 -->
+<div class="panel" id="adminPanel">
+<h3>📋 后台订单</h3>
+<div id="admin"></div>
+<button onclick="closeAdmin()">关闭</button>
+</div>
+
+<!-- 音效 -->
+<audio id="submitSound"></audio>
+
+<script>
+
+let data={
+"家常菜":[
+"西红柿炒蛋","红烧肉","青椒肉丝","鱼香肉丝","宫保鸡丁","麻婆豆腐","可乐鸡翅","番茄牛腩","酸辣土豆丝","红烧排骨",
+"清炒时蔬","蒜蓉西兰花","韭菜炒蛋","肉末茄子","回锅肉","干煸豆角","土豆炖牛肉","糖醋里脊","蒸蛋","葱爆羊肉"
+],
+"川菜":["水煮肉片","回锅肉","宫保鸡丁","麻婆豆腐","辣子鸡","鱼香肉丝","酸菜鱼"],
+"粤菜":["白切鸡","烧鹅","白灼虾","煲仔饭","肠粉"],
+"湘菜":["剁椒鱼头","小炒肉","辣椒炒肉"],
+"鲁菜":["糖醋鲤鱼","九转大肠"],
+"东北菜":["锅包肉","地三鲜","小鸡炖蘑菇"],
+"汤类":["紫菜蛋花汤","冬瓜排骨汤","番茄蛋汤"],
+"主食":["米饭","面条","饺子","蛋炒饭"]
+};
+
+let tab = Object.keys(data)[0];
+let cart = {};
+let orders = JSON.parse(localStorage.getItem("orders")||"[]");
+
+// 🔥 渲染菜单
+function render(){
+let box=document.getElementById("list");
+box.innerHTML="";
+
+Object.keys(data).forEach(k=>{
+box.innerHTML+=`<h3>${k}</h3>`;
+data[k].forEach(i=>{
+box.innerHTML+=`
+<div class="item">
+<span>${i}</span>
+<div>
+<button onclick="add('${i}')">+</button>
+<button onclick="remove('${i}')">-</button>
+</div>
+</div>`;
+});
+});
+}
+
+// ➕
+function add(name){
+cart[name]=(cart[name]||0)+1;
+update();
+}
+
+// ➖
+function remove(name){
+if(cart[name]){
+cart[name]--;
+if(cart[name]<=0)delete cart[name];
+update();
+}
+}
+
+// 🧺 更新数量
+function update(){
+let n=0;
+for(let k in cart)n+=cart[k];
+document.querySelector(".cart span").innerText=n;
+}
+
+// 🧺 打开购物车（修复）
+function openCart(){
+document.getElementById("cartPanel").style.display="block";
+showCart();
+}
+
+function showCart(){
+let box=document.getElementById("cartList");
+box.innerHTML="";
+
+for(let k in cart){
+box.innerHTML+=`
+<div class="item">
+<span>${k} × ${cart[k]}</span>
+<div>
+<button onclick="add('${k}')">+</button>
+<button onclick="remove('${k}')">-</button>
+</div>
+</div>`;
+}
+}
+
+// 🔊 提交音效（滴答）
+function playSubmit(){
+let a=new Audio("data:audio/mp3;base64,//uQZAAAAAAAAAA==");
+a.play();
+}
+
+// 📋 提交订单
+function submitOrder(){
+
+orders.push({
+time:new Date().toLocaleString(),
+items:JSON.parse(JSON.stringify(cart))
+});
+
+localStorage.setItem("orders",JSON.stringify(orders));
+
+cart={};
+update();
+
+playSubmit(); // ✔ 滴答音效
+
+alert("提交成功！");
+document.getElementById("cartPanel").style.display="none";
+}
+
+// 📋 后台（只显示订单）
+function openAdmin(){
+let box=document.getElementById("admin");
+box.innerHTML="";
+
+orders.forEach(o=>{
+box.innerHTML+=`
+<div class="orderBox">
+<b>${o.time}</b><br>`;
+for(let k in o.items){
+box.innerHTML+=`${k} × ${o.items[k]}<br>`;
+}
+box.innerHTML+="</div>";
+});
+
+document.getElementById("adminPanel").style.display="block";
+}
+
+function closeAdmin(){
+document.getElementById("adminPanel").style.display="none";
+}
+
+// 🔍 搜索
+function searchFood(){
+let key=document.getElementById("searchInput").value.trim();
+if(!key){
+render();
+return;
+}
+
+let box=document.getElementById("list");
+box.innerHTML="";
+
+Object.keys(data).forEach(k=>{
+data[k].forEach(i=>{
+if(i.includes(key)){
+box.innerHTML+=`
+<div class="item">
+<span>${i}</span>
+<div>
+<button onclick="add('${i}')">+</button>
+<button onclick="remove('${i}')">-</button>
+</div>
+</div>`;
+}
+});
+});
+}
+
+render();
+update();
+
+</script>
+
+</body>
+</html>
